@@ -193,7 +193,7 @@ class RoundedEntry(tk.Frame):
         self.entry = tk.Entry(self.canvas, textvariable=textvariable, justify=justify,
                               font=font, bg=bg, fg=fg, insertbackground="#075EAA",
                               relief="flat", bd=0, highlightthickness=0)
-        self.entry_window = self.canvas.create_window(8, 2, anchor="nw", window=self.entry)
+        self.entry_window = self.canvas.create_window(6, 1, anchor="nw", window=self.entry)
         self._border = border
         self.canvas.bind("<Configure>", self._draw)
         self.entry.bind("<FocusIn>", lambda e: self._set_focus(True))
@@ -202,7 +202,7 @@ class RoundedEntry(tk.Frame):
 
     def _draw(self, _event=None):
         w = max(self.winfo_width(), 20)
-        h = max(self.winfo_height(), 24)
+        h = max(self.winfo_height(), 20)
         r = min(self._radius, h // 2, w // 2)
         self.canvas.delete("roundbox")
         self.canvas.create_round_rect if False else None
@@ -217,7 +217,7 @@ class RoundedEntry(tk.Frame):
         self.canvas.create_line(w-r, h, r, h, fill=self._border, tags="roundbox")
         self.canvas.create_line(0, h-r, 0, r, fill=self._border, tags="roundbox")
         self.canvas.tag_lower("roundbox")
-        self.canvas.itemconfigure(self.entry_window, width=max(1, w-16), height=max(1, h-4))
+        self.canvas.itemconfigure(self.entry_window, width=max(1, w-12), height=max(1, h-2))
 
     def _set_focus(self, focused):
         self._border = "#0878D1" if focused else "#AFC3D8"
@@ -463,7 +463,7 @@ class App:
 
         num_lbl = tk.Label(self.table, text=str(r + 1), bg=row_bg, fg="#667085",
                            font=("Segoe UI", 8), width=4)
-        num_lbl.grid(row=r, column=0, padx=2, pady=2, sticky="nsew")
+        num_lbl.grid(row=r, column=0, padx=1, pady=1, sticky="nsew")
 
         # Product table columns use the exact same proportions as the header,
         # so PRODUCT / DESCRIPTION / QTY / COST line up precisely underneath.
@@ -478,7 +478,7 @@ class App:
             e = RoundedEntry(self.table, textvariable=var, justify=justify,
                              font=font, bg=row_bg, fg="#17324D",
                              border="#AFC3D8", radius=6)
-            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew", ipady=2)
+            e.grid(row=r, column=j, padx=1, pady=1, sticky="ew", ipady=0)
             widgets.append(e)
             e.bind("<KeyRelease>", lambda e: self.recalc())
             if j == 2:
@@ -491,7 +491,7 @@ class App:
                         bg="#FFF4F4", fg="#D92D20", activebackground="#FEE4E2",
                         activeforeground="#B42318", font=("Segoe UI", 9, "bold"),
                         relief="solid", bd=1, cursor="hand2")
-        btn.grid(row=r, column=5, padx=2, pady=2, sticky="nsew")
+        btn.grid(row=r, column=5, padx=1, pady=1, sticky="nsew")
         self.rows.append((p, d, q, c, widgets, btn, num_lbl))
         if hasattr(self, "table_canvas"):
             self.table_canvas.update_idletasks()
