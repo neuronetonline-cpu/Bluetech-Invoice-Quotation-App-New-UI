@@ -181,6 +181,57 @@ def money(v):
     return f"LKR {v:,.2f}"
 
 
+class RoundedEntry(tk.Frame):
+    """Small rounded-border entry used for quotation item cells."""
+    def __init__(self, master, textvariable=None, justify="left", font=("Segoe UI", 9),
+                 bg="#FFFFFF", fg="#17324D", border="#B8C7D9", radius=6, **kwargs):
+        super().__init__(master, bg=bg, bd=0, highlightthickness=0, **kwargs)
+        self._bg = bg
+        self._radius = radius
+        self.canvas = tk.Canvas(self, bg=bg, bd=0, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.entry = tk.Entry(self.canvas, textvariable=textvariable, justify=justify,
+                              font=font, bg=bg, fg=fg, insertbackground="#075EAA",
+                              relief="flat", bd=0, highlightthickness=0)
+        self.entry_window = self.canvas.create_window(8, 2, anchor="nw", window=self.entry)
+        self._border = border
+        self.canvas.bind("<Configure>", self._draw)
+        self.entry.bind("<FocusIn>", lambda e: self._set_focus(True))
+        self.entry.bind("<FocusOut>", lambda e: self._set_focus(False))
+        self._draw()
+
+    def _draw(self, _event=None):
+        w = max(self.winfo_width(), 20)
+        h = max(self.winfo_height(), 24)
+        r = min(self._radius, h // 2, w // 2)
+        self.canvas.delete("roundbox")
+        self.canvas.create_round_rect if False else None
+        pts = [r, 0, w-r, 0, w, r, w, h-r, w-r, h, r, h, 0, h-r, 0, r]
+        # Smooth rounded polygon approximation using a canvas arc + rectangles.
+        self.canvas.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, style="arc", outline=self._border, tags="roundbox")
+        self.canvas.create_arc(w-2*r, 0, w, 2*r, start=0, extent=90, style="arc", outline=self._border, tags="roundbox")
+        self.canvas.create_arc(w-2*r, h-2*r, w, h, start=270, extent=90, style="arc", outline=self._border, tags="roundbox")
+        self.canvas.create_arc(0, h-2*r, 2*r, h, start=180, extent=90, style="arc", outline=self._border, tags="roundbox")
+        self.canvas.create_line(r, 0, w-r, 0, fill=self._border, tags="roundbox")
+        self.canvas.create_line(w, r, w, h-r, fill=self._border, tags="roundbox")
+        self.canvas.create_line(w-r, h, r, h, fill=self._border, tags="roundbox")
+        self.canvas.create_line(0, h-r, 0, r, fill=self._border, tags="roundbox")
+        self.canvas.tag_lower("roundbox")
+        self.canvas.itemconfigure(self.entry_window, width=max(1, w-16), height=max(1, h-4))
+
+    def _set_focus(self, focused):
+        self._border = "#0878D1" if focused else "#AFC3D8"
+        self._draw()
+
+    def get(self): return self.entry.get()
+    def insert(self, *args): return self.entry.insert(*args)
+    def delete(self, *args): return self.entry.delete(*args)
+    def bind(self, *args, **kwargs): return self.entry.bind(*args, **kwargs)
+    def focus_set(self): return self.entry.focus_set()
+    def selection_range(self, *args): return self.entry.selection_range(*args)
+    def icursor(self, *args): return self.entry.icursor(*args)
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -285,8 +336,9 @@ class App:
 
         heads = ["#", "PRODUCT", "DESCRIPTION", "QTY", "COST (LKR)", "REMOVE"]
         weights = [0, 3, 5, 1, 2, 0]
+        col_mins = [42, 210, 360, 100, 180, 70]
         for j, (h, wt) in enumerate(zip(heads, weights)):
-            box.columnconfigure(j, weight=wt, minsize=[42, 210, 360, 100, 180, 70][j])
+            box.columnconfigure(j, weight=wt, minsize=col_mins[j])
             tk.Label(box, text=h, bg="#CFE6FA", fg="#12345B",
                      font=("Segoe UI", 8, "bold"), relief="solid", bd=1,
                      padx=5, pady=7).grid(row=0, column=j, sticky="nsew", padx=1, pady=1)
@@ -343,12 +395,17 @@ class App:
                   ("Final COD Price", self.cod_final)]
         for i, (lab, var) in enumerate(labels):
             calc.columnconfigure(i, weight=1)
-            card = tk.Frame(calc, bg="#F7FAFE", highlightbackground="#D4E2F0", highlightthickness=1,
+            is_main_price = lab == "3 Months Final Price"
+            card_bg = "#EAF4FF" if is_main_price else "#F7FAFE"
+            card_border = "#0878D1" if is_main_price else "#D4E2F0"
+            card = tk.Frame(calc, bg=card_bg, highlightbackground=card_border, highlightthickness=2 if is_main_price else 1,
                             padx=8, pady=5)
             card.grid(row=0, column=i, sticky="nsew", padx=3)
-            tk.Label(card, text=lab, bg="#F7FAFE", fg="#607086",
-                     font=("Segoe UI", 7, "bold")).pack(anchor="w")
-            ent = ttk.Entry(card, textvariable=var, justify="right", font=("Segoe UI", 9, "bold"))
+            tk.Label(card, text=("★  " + lab.upper()) if is_main_price else lab, bg=card_bg,
+                     fg="#075EAA" if is_main_price else "#607086",
+                     font=("Segoe UI", 8, "bold")).pack(anchor="w")
+            ent = ttk.Entry(card, textvariable=var, justify="right",
+                            font=("Segoe UI", 10 if is_main_price else 9, "bold"))
             ent.pack(fill="x", pady=(4, 0))
             if lab in ("Requested Profit", "Weight (KG)"):
                 ent.bind("<KeyRelease>", lambda e: self.recalc())
@@ -408,14 +465,20 @@ class App:
                            font=("Segoe UI", 8), width=4)
         num_lbl.grid(row=r, column=0, padx=2, pady=2, sticky="nsew")
 
+        # Product table columns use the exact same proportions as the header,
+        # so PRODUCT / DESCRIPTION / QTY / COST line up precisely underneath.
+        table_weights = [0, 3, 5, 1, 2, 0]
+        for col, wt in enumerate(table_weights):
+            self.table.columnconfigure(col, weight=wt, minsize=[42, 210, 360, 100, 180, 70][col])
+
         for j, var in enumerate([p, d, q, c], start=1):
             justify = "center" if j == 2 else ("right" if j == 4 else "left")
-            e = tk.Entry(self.table, textvariable=var, justify=justify,
-                         font=("Segoe UI", 9), bg=row_bg, fg="#17324D",
-                         insertbackground="#075EAA", relief="solid", bd=1,
-                         highlightthickness=1, highlightbackground="#C8D6E5",
-                         highlightcolor="#0878D1")
-            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew", ipady=3)
+            # Product names are intentionally bold for faster scanning.
+            font = ("Segoe UI", 9, "bold") if j == 1 else ("Segoe UI", 9)
+            e = RoundedEntry(self.table, textvariable=var, justify=justify,
+                             font=font, bg=row_bg, fg="#17324D",
+                             border="#AFC3D8", radius=6)
+            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew", ipady=2)
             widgets.append(e)
             e.bind("<KeyRelease>", lambda e: self.recalc())
             if j == 2:
@@ -430,9 +493,6 @@ class App:
                         relief="solid", bd=1, cursor="hand2")
         btn.grid(row=r, column=5, padx=2, pady=2, sticky="nsew")
         self.rows.append((p, d, q, c, widgets, btn, num_lbl))
-        for col in range(6):
-            self.table.columnconfigure(col, weight=(0 if col in (0, 5) else 1), minsize=40)
-
         if hasattr(self, "table_canvas"):
             self.table_canvas.update_idletasks()
             self.table_canvas.configure(scrollregion=self.table_canvas.bbox("all"))
