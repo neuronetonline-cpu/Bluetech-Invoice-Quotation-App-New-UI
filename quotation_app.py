@@ -36,7 +36,9 @@ DEFAULT_PRODUCTS = [
 
 BLUE = "#075EAA"
 DARK_BLUE = "#12345B"
-LIGHT_BLUE = "#EAF4FF"
+LIGHT_BLUE = "#DCEEFF"
+ROW_BLUE = "#DCEEFF"
+ROW_WHITE = "#FFFFFF"
 LIGHT_GREEN = "#ECF9F0"
 GREEN = "#159447"
 GREY = "#667085"
@@ -285,7 +287,7 @@ class App:
         weights = [0, 3, 5, 1, 2, 0]
         for j, (h, wt) in enumerate(zip(heads, weights)):
             box.columnconfigure(j, weight=wt, minsize=[42, 210, 360, 100, 180, 70][j])
-            tk.Label(box, text=h, bg="#DCEEFF", fg="#12345B",
+            tk.Label(box, text=h, bg="#CFE6FA", fg="#12345B",
                      font=("Segoe UI", 8, "bold"), relief="solid", bd=1,
                      padx=5, pady=7).grid(row=0, column=j, sticky="nsew", padx=1, pady=1)
 
@@ -400,7 +402,7 @@ class App:
         q = tk.StringVar(value="1")
         c = tk.StringVar(value="0")
         widgets = []
-        row_bg = "#FFFFFF" if r % 2 == 0 else "#F3F8FD"
+        row_bg = ROW_BLUE if r % 2 == 0 else ROW_WHITE
 
         num_lbl = tk.Label(self.table, text=str(r + 1), bg=row_bg, fg="#667085",
                            font=("Segoe UI", 8), width=4)
@@ -464,7 +466,7 @@ class App:
         self.rows.pop(idx)
 
         for r, row in enumerate(self.rows):
-            row_bg = "#FFFFFF" if r % 2 == 0 else "#F3F8FD"
+            row_bg = ROW_BLUE if r % 2 == 0 else ROW_WHITE
             row[6].configure(text=str(r + 1), bg=row_bg)
             row[6].grid_configure(row=r, column=0)
             for j, w in enumerate(row[4], start=1):
