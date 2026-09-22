@@ -190,45 +190,65 @@ class App:
         self.build()
 
     def build(self):
-        # Modern Bluetech UI. The product list has its own vertical scrollbar so
-        # adding rows never pushes the calculation/action buttons off-screen.
+        # Polished Bluetech desktop UI. The quotation item list has its own
+        # scrollbar so the calculation and action areas always remain visible.
         style = ttk.Style()
         try:
             style.theme_use("clam")
         except Exception:
             pass
-        style.configure("TButton", font=("Segoe UI", 9, "bold"), padding=(10, 6))
-        style.configure("TEntry", padding=5)
-        style.configure("TCombobox", padding=4)
-        style.configure("Tree.TFrame", background="#FFFFFF")
 
-        self.root.configure(bg="#F4F8FC")
+        self.root.configure(bg="#F3F7FC")
+        style.configure("TEntry", font=("Segoe UI", 9), padding=(7, 5),
+                        fieldbackground="#FFFFFF", bordercolor="#B8C7D9")
+        style.configure("TCombobox", font=("Segoe UI", 9), padding=(6, 4))
+        style.configure("Blue.TButton", font=("Segoe UI", 9, "bold"),
+                        foreground="#FFFFFF", background="#0878D1", padding=(12, 7), borderwidth=0)
+        style.map("Blue.TButton", background=[("active", "#0565B3")])
+        style.configure("Green.TButton", font=("Segoe UI", 9, "bold"),
+                        foreground="#FFFFFF", background="#159447", padding=(12, 7), borderwidth=0)
+        style.map("Green.TButton", background=[("active", "#107638")])
+        style.configure("Light.TButton", font=("Segoe UI", 9, "bold"),
+                        foreground="#17324D", background="#E7F0FA", padding=(11, 7), borderwidth=0)
+        style.map("Light.TButton", background=[("active", "#D7E7F7")])
 
         # ---------- Header ----------
-        header = tk.Frame(self.root, bg="#075EAA", height=76)
+        header = tk.Frame(self.root, bg="#075EAA", height=82)
         header.pack(fill="x")
         header.pack_propagate(False)
 
         brand = tk.Frame(header, bg="#075EAA")
-        brand.pack(side="left", padx=20, pady=10)
-        tk.Label(brand, text="BLUETECH", bg="#075EAA", fg="#6ED4FF",
-                 font=("Segoe UI", 22, "bold")).pack(side="left")
+        brand.pack(side="left", padx=22, pady=10)
+        tk.Label(brand, text="BLUETECH", bg="#075EAA", fg="#62D3FF",
+                 font=("Segoe UI", 23, "bold")).pack(side="left")
         tk.Label(brand, text=" COMPUTERS", bg="#075EAA", fg="white",
-                 font=("Segoe UI", 22, "bold")).pack(side="left")
-        tk.Label(brand, text="COMPUTER SALES | REPAIRS | ACCESSORIES  •  YOUR TECH PARTNER",
-                 bg="#075EAA", fg="#D9EEFF", font=("Segoe UI", 8)).pack(anchor="w", padx=2)
+                 font=("Segoe UI", 23, "bold")).pack(side="left")
+        tk.Label(brand, text="COMPUTER SALES  |  REPAIRS  |  ACCESSORIES   •   YOUR TECH PARTNER",
+                 bg="#075EAA", fg="#D9EEFF", font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=2)
 
-        header_buttons = tk.Frame(header, bg="#075EAA")
-        header_buttons.pack(side="right", padx=18)
-        ttk.Button(header_buttons, text="+  New Quotation", command=self.new_quote).pack(side="left", padx=4)
-        ttk.Button(header_buttons, text="Quotation History", command=self.history).pack(side="left", padx=4)
-        ttk.Button(header_buttons, text="Settings", command=self.settings).pack(side="left", padx=4)
+        hb = tk.Frame(header, bg="#075EAA")
+        hb.pack(side="right", padx=18)
+        ttk.Button(hb, text="＋  New Quotation", style="Blue.TButton", command=self.new_quote).pack(side="left", padx=4)
+        ttk.Button(hb, text="Quotation History", style="Blue.TButton", command=self.history).pack(side="left", padx=4)
+        ttk.Button(hb, text="⚙  Settings", style="Blue.TButton", command=self.settings).pack(side="left", padx=4)
 
-        # ---------- Customer / quotation details ----------
-        info = tk.LabelFrame(self.root, text="  CUSTOMER / QUOTATION DETAILS  ",
-                             bg="#FFFFFF", fg="#075EAA", bd=1, relief="solid",
-                             font=("Segoe UI", 9, "bold"), padx=12, pady=10)
-        info.pack(fill="x", padx=12, pady=(10, 6))
+        # ---------- Section helper ----------
+        def section(title, subtitle=""):
+            bar = tk.Frame(self.root, bg="#0878D1", height=34)
+            bar.pack(fill="x", padx=12, pady=(8, 0))
+            bar.pack_propagate(False)
+            tk.Label(bar, text=title, bg="#0878D1", fg="white",
+                     font=("Segoe UI", 9, "bold")).pack(side="left", padx=12)
+            if subtitle:
+                tk.Label(bar, text=subtitle, bg="#0878D1", fg="#DCEFFF",
+                         font=("Segoe UI", 8)).pack(side="left", padx=4)
+            return bar
+
+        # ---------- Customer details ----------
+        section("CUSTOMER / QUOTATION DETAILS")
+        info = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#B9D7EF",
+                        highlightthickness=1, padx=12, pady=10)
+        info.pack(fill="x", padx=12)
 
         self.qno = tk.StringVar(value=next_qno())
         self.customer = tk.StringVar()
@@ -236,48 +256,39 @@ class App:
         self.qdate = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
         users = [name for _, name in get_users()]
         if not users:
-            c = db()
-            c.execute("INSERT OR IGNORE INTO users(name,active) VALUES(?,1)", ("Admin",))
-            c.commit(); c.close()
+            c = db(); c.execute("INSERT OR IGNORE INTO users(name,active) VALUES(?,1)", ("Admin",)); c.commit(); c.close()
             users = ["Admin"]
         self.prepared_by = tk.StringVar(value=users[0])
 
-        fields = [
-            ("Quotation No.", self.qno), ("Customer Name", self.customer),
-            ("WhatsApp / Phone", self.phone), ("Date", self.qdate)
-        ]
+        fields = [("Quotation No.", self.qno), ("Customer Name", self.customer),
+                  ("WhatsApp / Phone", self.phone), ("Date", self.qdate)]
         for i, (lab, var) in enumerate(fields):
             col = i * 2
-            tk.Label(info, text=lab, bg="#FFFFFF", fg="#344054",
-                     font=("Segoe UI", 8, "bold")).grid(row=0, column=col, sticky="w", padx=6)
-            ttk.Entry(info, textvariable=var).grid(row=1, column=col, columnspan=1,
-                                                   sticky="ew", padx=6, pady=(2, 4))
-            info.columnconfigure(col, weight=1)
+            info.columnconfigure(col + 1, weight=1)
+            tk.Label(info, text=lab.upper(), bg="#FFFFFF", fg="#506176",
+                     font=("Segoe UI", 8, "bold")).grid(row=0, column=col, sticky="w", padx=7)
+            ttk.Entry(info, textvariable=var).grid(row=1, column=col, columnspan=2,
+                                                    sticky="ew", padx=7, pady=(3, 4))
 
-        tk.Label(info, text="Prepared By", bg="#FFFFFF", fg="#344054",
-                 font=("Segoe UI", 8, "bold")).grid(row=2, column=0, sticky="w", padx=6, pady=(3,0))
+        tk.Label(info, text="PREPARED BY", bg="#FFFFFF", fg="#506176",
+                 font=("Segoe UI", 8, "bold")).grid(row=2, column=0, sticky="w", padx=7, pady=(3, 0))
         self.prepared_combo = ttk.Combobox(info, textvariable=self.prepared_by,
                                            values=users, state="readonly")
-        self.prepared_combo.grid(row=3, column=0, sticky="ew", padx=6)
+        self.prepared_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=7, pady=(3, 0))
 
-        # ---------- Quotation items ----------
-        box = tk.LabelFrame(self.root, text="  QUOTATION ITEMS  •  COST AND PROFIT ARE INTERNAL ONLY  ",
-                            bg="#FFFFFF", fg="#075EAA", bd=1, relief="solid",
-                            font=("Segoe UI", 9, "bold"), padx=6, pady=6)
-        box.pack(fill="both", expand=True, padx=12, pady=6)
+        # ---------- Items section ----------
+        section("QUOTATION ITEMS", "•  COST AND PROFIT ARE INTERNAL ONLY")
+        box = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1)
+        box.pack(fill="both", expand=True, padx=12)
 
         heads = ["#", "PRODUCT", "DESCRIPTION", "QTY", "COST (LKR)", "REMOVE"]
-        header_bg = "#DCEEFF"
-        widths = [5, 24, 42, 10, 20, 9]
-        for j, (h, w) in enumerate(zip(heads, widths)):
-            tk.Label(box, text=h, bg=header_bg, fg="#12345B",
-                     font=("Segoe UI", 8, "bold"), anchor="center",
-                     relief="solid", bd=1, padx=4, pady=7).grid(
-                         row=0, column=j, sticky="nsew", padx=1, pady=1)
-            box.columnconfigure(j, weight=(0 if j in (0,5) else 1), minsize=w*8)
+        weights = [0, 3, 5, 1, 2, 0]
+        for j, (h, wt) in enumerate(zip(heads, weights)):
+            box.columnconfigure(j, weight=wt, minsize=[42, 210, 360, 100, 180, 70][j])
+            tk.Label(box, text=h, bg="#DCEEFF", fg="#12345B",
+                     font=("Segoe UI", 8, "bold"), relief="solid", bd=1,
+                     padx=5, pady=7).grid(row=0, column=j, sticky="nsew", padx=1, pady=1)
 
-        # Scrollable table body. The scrollbar is deliberately limited to the
-        # product area; calculation and action buttons remain fixed and visible.
         body = tk.Frame(box, bg="#FFFFFF")
         body.grid(row=1, column=0, columnspan=6, sticky="nsew")
         box.rowconfigure(1, weight=1, minsize=280)
@@ -302,11 +313,12 @@ class App:
         for p in DEFAULT_PRODUCTS:
             self.add_row(p, silent=True)
 
-        addbar = tk.Frame(self.root, bg="#F4F8FC")
-        addbar.pack(fill="x", padx=12, pady=(0, 4))
-        ttk.Button(addbar, text="+  ADD PRODUCT / ROW", command=lambda: self.add_row("")).pack(side="left")
-        tk.Label(addbar, text="Use the scrollbar inside the product list when adding more rows.",
-                 bg="#F4F8FC", fg="#667085", font=("Segoe UI", 8)).pack(side="left", padx=12)
+        addbar = tk.Frame(self.root, bg="#F3F7FC")
+        addbar.pack(fill="x", padx=12, pady=(4, 2))
+        ttk.Button(addbar, text="＋  ADD PRODUCT / ROW", style="Blue.TButton",
+                   command=lambda: self.add_row("")).pack(side="left")
+        tk.Label(addbar, text="Scroll inside the product list when adding more rows.",
+                 bg="#F3F7FC", fg="#667085", font=("Segoe UI", 8)).pack(side="left", padx=12)
 
         # ---------- Internal calculation ----------
         self.total_cost = tk.StringVar(value="LKR 0.00")
@@ -319,44 +331,43 @@ class App:
         self.cod_commission = tk.StringVar(value="LKR 0.00")
         self.cod_final = tk.StringVar(value="LKR 0.00")
 
-        calc = tk.LabelFrame(self.root, text="  INTERNAL CALCULATION  ",
-                             bg="#FFFFFF", fg="#075EAA", bd=1, relief="solid",
-                             font=("Segoe UI", 9, "bold"), padx=6, pady=5)
-        calc.pack(fill="x", padx=12, pady=5)
-
-        labels = [
-            ("Total Cost", self.total_cost), ("Requested Profit", self.profit),
-            ("3 Months Final Price", self.final90), ("6 Months Final Price (+35%)", self.final180),
-            ("Weight (KG)", self.weight), ("COD Charge", self.cod_charge),
-            ("COD Subtotal", self.cod_subtotal), ("COD Commission", self.cod_commission),
-            ("Final COD Price", self.cod_final)
-        ]
+        section("INTERNAL CALCULATION")
+        calc = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1, padx=7, pady=7)
+        calc.pack(fill="x", padx=12)
+        labels = [("Total Cost", self.total_cost), ("Requested Profit", self.profit),
+                  ("3 Months Final Price", self.final90), ("6 Months Final Price (+35%)", self.final180),
+                  ("Weight (KG)", self.weight), ("COD Charge", self.cod_charge),
+                  ("COD Subtotal", self.cod_subtotal), ("COD Commission", self.cod_commission),
+                  ("Final COD Price", self.cod_final)]
         for i, (lab, var) in enumerate(labels):
-            card = tk.Frame(calc, bg="#F8FBFF", bd=1, relief="solid", padx=7, pady=4)
+            calc.columnconfigure(i, weight=1)
+            card = tk.Frame(calc, bg="#F7FAFE", highlightbackground="#D4E2F0", highlightthickness=1,
+                            padx=8, pady=5)
             card.grid(row=0, column=i, sticky="nsew", padx=3)
-            tk.Label(card, text=lab, bg="#F8FBFF", fg="#667085",
+            tk.Label(card, text=lab, bg="#F7FAFE", fg="#607086",
                      font=("Segoe UI", 7, "bold")).pack(anchor="w")
-            ent = ttk.Entry(card, textvariable=var, justify="right", width=16)
-            ent.pack(fill="x", pady=(3,0))
+            ent = ttk.Entry(card, textvariable=var, justify="right", font=("Segoe UI", 9, "bold"))
+            ent.pack(fill="x", pady=(4, 0))
             if lab in ("Requested Profit", "Weight (KG)"):
                 ent.bind("<KeyRelease>", lambda e: self.recalc())
-            calc.columnconfigure(i, weight=1)
 
-        ttk.Button(calc, text="CALCULATE", command=self.recalc).grid(
-            row=0, column=len(labels), sticky="ns", padx=(5,2), pady=1)
+        calc_btn = tk.Button(calc, text="CALCULATE", command=self.recalc,
+                             bg="#0878D1", fg="white", activebackground="#0565B3",
+                             activeforeground="white", font=("Segoe UI", 9, "bold"),
+                             relief="flat", padx=15, pady=12, cursor="hand2")
+        calc_btn.grid(row=0, column=len(labels), padx=(6, 2), sticky="ns")
 
-        # ---------- Action buttons ----------
-        actions = tk.Frame(self.root, bg="#F4F8FC")
-        actions.pack(fill="x", padx=12, pady=(2, 10))
-        ttk.Button(actions, text="CLEAR", command=self.new_quote).pack(side="left", padx=3)
-        ttk.Button(actions, text="SAVE QUOTATION", command=self.save_quote).pack(side="right", padx=3)
-        ttk.Button(actions, text="SAVE AS NEW QUOTATION", command=self.save_as_new_quote).pack(side="right", padx=3)
-        ttk.Button(actions, text="PREVIEW / SAVE PDF", command=self.save_pdf).pack(side="right", padx=3)
-        ttk.Button(actions, text="WHATSAPP QUOTATION", command=self.whatsapp_quotation).pack(side="right", padx=3)
+        # ---------- Bottom actions ----------
+        actions = tk.Frame(self.root, bg="#F3F7FC")
+        actions.pack(fill="x", padx=12, pady=(6, 10))
+        ttk.Button(actions, text="CLEAR", style="Light.TButton", command=self.new_quote).pack(side="left", padx=3)
+        ttk.Button(actions, text="SAVE QUOTATION", style="Blue.TButton", command=self.save_quote).pack(side="right", padx=3)
+        ttk.Button(actions, text="SAVE AS NEW QUOTATION", style="Blue.TButton", command=self.save_as_new_quote).pack(side="right", padx=3)
+        ttk.Button(actions, text="PREVIEW / SAVE PDF", style="Blue.TButton", command=self.save_pdf).pack(side="right", padx=3)
+        ttk.Button(actions, text="WHATSAPP QUOTATION", style="Green.TButton", command=self.whatsapp_quotation).pack(side="right", padx=3)
         inv_btn = tk.Button(actions, text="CONVERT TO INVOICE", command=self.convert_to_invoice,
-                            bg="#E53935", fg="white", activebackground="#C62828",
-                            activeforeground="white", font=("Segoe UI", 9, "bold"),
-                            relief="flat", padx=14, pady=7, cursor="hand2")
+                            bg="#E53935", fg="white", activebackground="#C62828", activeforeground="white",
+                            font=("Segoe UI", 9, "bold"), relief="flat", padx=16, pady=8, cursor="hand2")
         inv_btn.pack(side="right", padx=3)
 
         self.recalc()
@@ -389,15 +400,20 @@ class App:
         q = tk.StringVar(value="1")
         c = tk.StringVar(value="0")
         widgets = []
+        row_bg = "#FFFFFF" if r % 2 == 0 else "#F3F8FD"
 
-        num_lbl = tk.Label(self.table, text=str(r + 1), bg="#FFFFFF", fg="#667085",
+        num_lbl = tk.Label(self.table, text=str(r + 1), bg=row_bg, fg="#667085",
                            font=("Segoe UI", 8), width=4)
         num_lbl.grid(row=r, column=0, padx=2, pady=2, sticky="nsew")
 
         for j, var in enumerate([p, d, q, c], start=1):
             justify = "center" if j == 2 else ("right" if j == 4 else "left")
-            e = ttk.Entry(self.table, textvariable=var, justify=justify)
-            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew")
+            e = tk.Entry(self.table, textvariable=var, justify=justify,
+                         font=("Segoe UI", 9), bg=row_bg, fg="#17324D",
+                         insertbackground="#075EAA", relief="solid", bd=1,
+                         highlightthickness=1, highlightbackground="#C8D6E5",
+                         highlightcolor="#0878D1")
+            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew", ipady=3)
             widgets.append(e)
             e.bind("<KeyRelease>", lambda e: self.recalc())
             if j == 2:
@@ -405,14 +421,15 @@ class App:
             elif j == 4:
                 e.bind("<Return>", lambda event, widget=e: self.focus_next_row_field(widget, 3))
 
-        btn = tk.Button(self.table, text="✕", width=4, command=lambda rr=r: self.remove_row(rr),
-                        bg="#FFF5F5", fg="#D92D20", activebackground="#FEE4E2",
+        btn = tk.Button(self.table, text="✕", width=4,
+                        command=lambda rr=r: self.remove_row(rr),
+                        bg="#FFF4F4", fg="#D92D20", activebackground="#FEE4E2",
                         activeforeground="#B42318", font=("Segoe UI", 9, "bold"),
                         relief="solid", bd=1, cursor="hand2")
         btn.grid(row=r, column=5, padx=2, pady=2, sticky="nsew")
         self.rows.append((p, d, q, c, widgets, btn, num_lbl))
         for col in range(6):
-            self.table.columnconfigure(col, weight=(0 if col in (0,5) else 1), minsize=40)
+            self.table.columnconfigure(col, weight=(0 if col in (0, 5) else 1), minsize=40)
 
         if hasattr(self, "table_canvas"):
             self.table_canvas.update_idletasks()
@@ -447,9 +464,11 @@ class App:
         self.rows.pop(idx)
 
         for r, row in enumerate(self.rows):
-            row[6].configure(text=str(r + 1))
+            row_bg = "#FFFFFF" if r % 2 == 0 else "#F3F8FD"
+            row[6].configure(text=str(r + 1), bg=row_bg)
             row[6].grid_configure(row=r, column=0)
             for j, w in enumerate(row[4], start=1):
+                w.configure(bg=row_bg)
                 w.grid_configure(row=r, column=j)
             row[5].grid_configure(row=r, column=5)
         if hasattr(self, "table_canvas"):
