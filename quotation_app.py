@@ -36,7 +36,9 @@ DEFAULT_PRODUCTS = [
 
 BLUE = "#075EAA"
 DARK_BLUE = "#12345B"
-LIGHT_BLUE = "#EAF4FF"
+LIGHT_BLUE = "#DCEEFF"
+ROW_BLUE = "#DCEEFF"
+ROW_WHITE = "#FFFFFF"
 LIGHT_GREEN = "#ECF9F0"
 GREEN = "#159447"
 GREY = "#667085"
@@ -179,60 +181,6 @@ def money(v):
     return f"LKR {v:,.2f}"
 
 
-class RoundedEntry(tk.Frame):
-    """Small rounded-corner Entry used for quotation item inputs."""
-    def __init__(self, master, textvariable=None, justify="left", font=("Segoe UI", 9),
-                 bg="#FFFFFF", fg="#17324D", **kwargs):
-        super().__init__(master, bg=bg, bd=0, highlightthickness=0, **kwargs)
-        self._bg = bg
-        self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
-        self.canvas.pack(fill="both", expand=True)
-        self.entry = tk.Entry(
-            self.canvas, textvariable=textvariable, justify=justify, font=font,
-            bg="#FFFFFF", fg=fg, insertbackground="#075EAA",
-            relief="flat", bd=0, highlightthickness=0
-        )
-        self.entry_window = self.canvas.create_window(8, 2, anchor="nw", window=self.entry)
-        self.bind("<Configure>", self._draw)
-        self.after_idle(self._draw)
-
-    def _draw(self, _event=None):
-        w = max(self.winfo_width(), 20)
-        h = max(self.winfo_height(), 24)
-        self.canvas.delete("border")
-        self.canvas.create_round_rect = getattr(self.canvas, "create_round_rect", None)
-        # Draw a simple rounded outline using an arc/line combination.
-        r = min(6, max(2, h // 4))
-        self.canvas.create_rectangle(
-            r, 1, w - r, h - 2, outline="#C8D6E5", fill="#FFFFFF", width=1, tags="border"
-        )
-        self.canvas.create_arc(1, 1, 2*r+1, h-2, start=90, extent=180,
-                               outline="#C8D6E5", style="arc", tags="border")
-        self.canvas.create_arc(w-2*r-1, 1, w-1, h-2, start=270, extent=180,
-                               outline="#C8D6E5", style="arc", tags="border")
-        self.canvas.create_line(r, 1, w-r, 1, fill="#C8D6E5", tags="border")
-        self.canvas.create_line(r, h-2, w-r, h-2, fill="#C8D6E5", tags="border")
-        self.canvas.tag_lower("border")
-        self.canvas.itemconfigure(self.entry_window, width=max(1, w-16), height=max(1, h-4))
-
-    def bind(self, sequence=None, func=None, add=None):
-        return self.entry.bind(sequence, func, add)
-
-    def focus_set(self):
-        return self.entry.focus_set()
-
-    def selection_range(self, start, end):
-        return self.entry.selection_range(start, end)
-
-    def configure(self, cnf=None, **kw):
-        if kw.get("bg"):
-            self._bg = kw["bg"]
-            self.canvas.configure(bg=self._bg)
-        return super().configure(cnf, **kw)
-
-    config = configure
-
-
 class App:
     def __init__(self, root):
         self.root = root
@@ -339,9 +287,9 @@ class App:
         weights = [0, 3, 5, 1, 2, 0]
         for j, (h, wt) in enumerate(zip(heads, weights)):
             box.columnconfigure(j, weight=wt, minsize=[42, 210, 360, 100, 180, 70][j])
-            tk.Label(box, text=h, bg="#DCEEFF", fg="#12345B",
+            tk.Label(box, text=h, bg="#CFE6FA", fg="#12345B",
                      font=("Segoe UI", 8, "bold"), relief="solid", bd=1,
-                     padx=5, pady=6).grid(row=0, column=j, sticky="nsew", padx=2, pady=1)
+                     padx=5, pady=7).grid(row=0, column=j, sticky="nsew", padx=1, pady=1)
 
         body = tk.Frame(box, bg="#FFFFFF")
         body.grid(row=1, column=0, columnspan=6, sticky="nsew")
@@ -395,24 +343,22 @@ class App:
                   ("Final COD Price", self.cod_final)]
         for i, (lab, var) in enumerate(labels):
             calc.columnconfigure(i, weight=1)
-            is_final90 = lab == "3 Months Final Price"
-            card_bg = "#EAF4FF" if is_final90 else "#F7FAFE"
-            border = "#0878D1" if is_final90 else "#D4E2F0"
-            card = tk.Frame(calc, bg=card_bg, highlightbackground=border, highlightthickness=1,
-                            padx=8 if not is_final90 else 10, pady=6 if is_final90 else 5)
+            is_final_3m = lab == "3 Months Final Price"
+            card_bg = BLUE if is_final_3m else "#F7FAFE"
+            card_border = BLUE if is_final_3m else "#D4E2F0"
+            card = tk.Frame(calc, bg=card_bg, highlightbackground=card_border, highlightthickness=1,
+                            padx=8, pady=5)
             card.grid(row=0, column=i, sticky="nsew", padx=3)
-            tk.Label(card, text=lab, bg=card_bg,
-                     fg="#075EAA" if is_final90 else "#607086",
-                     font=("Segoe UI", 8 if is_final90 else 7, "bold")).pack(anchor="w")
-            if is_final90:
+            tk.Label(card, text=lab, bg=card_bg, fg=("white" if is_final_3m else "#607086"),
+                     font=("Segoe UI", 8 if is_final_3m else 7, "bold")).pack(anchor="w")
+            if is_final_3m:
                 ent = tk.Entry(card, textvariable=var, justify="right",
-                               font=("Segoe UI", 12, "bold"),
-                               bg="#EAF4FF", fg="#075EAA",
-                               insertbackground="#075EAA", relief="flat", bd=0,
+                               font=("Segoe UI", 12, "bold"), bg=BLUE, fg="white",
+                               insertbackground="white", relief="flat", bd=0,
                                highlightthickness=0)
             else:
                 ent = ttk.Entry(card, textvariable=var, justify="right", font=("Segoe UI", 9, "bold"))
-            ent.pack(fill="x", pady=(5, 0))
+            ent.pack(fill="x", pady=(4, 0))
             if lab in ("Requested Profit", "Weight (KG)"):
                 ent.bind("<KeyRelease>", lambda e: self.recalc())
 
@@ -465,7 +411,7 @@ class App:
         q = tk.StringVar(value="1")
         c = tk.StringVar(value="0")
         widgets = []
-        row_bg = "#FFFFFF" if r % 2 == 0 else "#F3F8FD"
+        row_bg = ROW_BLUE if r % 2 == 0 else ROW_WHITE
 
         num_lbl = tk.Label(self.table, text=str(r + 1), bg=row_bg, fg="#667085",
                            font=("Segoe UI", 8), width=4)
@@ -473,11 +419,14 @@ class App:
 
         for j, var in enumerate([p, d, q, c], start=1):
             justify = "center" if j == 2 else ("right" if j == 4 else "left")
-            e = RoundedEntry(self.table, textvariable=var, justify=justify,
-                             font=("Segoe UI", 9, "bold" if j == 1 else "normal"),
-                             bg=row_bg, fg="#17324D")
-            # Match the header grid exactly: same column, same horizontal padding.
-            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew")
+            # Product name is intentionally bold for quick visual scanning.
+            entry_font = ("Segoe UI", 9, "bold") if j == 1 else ("Segoe UI", 9)
+            e = tk.Entry(self.table, textvariable=var, justify=justify,
+                         font=entry_font, bg=row_bg, fg="#17324D",
+                         insertbackground="#075EAA", relief="solid", bd=1,
+                         highlightthickness=1, highlightbackground="#C8D6E5",
+                         highlightcolor="#0878D1")
+            e.grid(row=r, column=j, padx=2, pady=2, sticky="ew", ipady=3)
             widgets.append(e)
             e.bind("<KeyRelease>", lambda e: self.recalc())
             if j == 2:
@@ -528,7 +477,7 @@ class App:
         self.rows.pop(idx)
 
         for r, row in enumerate(self.rows):
-            row_bg = "#FFFFFF" if r % 2 == 0 else "#F3F8FD"
+            row_bg = ROW_BLUE if r % 2 == 0 else ROW_WHITE
             row[6].configure(text=str(r + 1), bg=row_bg)
             row[6].grid_configure(row=r, column=0)
             for j, w in enumerate(row[4], start=1):
