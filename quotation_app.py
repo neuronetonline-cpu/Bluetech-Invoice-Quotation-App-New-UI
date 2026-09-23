@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
+import tkinter.font as tkfont
 
 try:
     import win32print
@@ -47,6 +48,23 @@ GREY = "#667085"
 def resource_path(name):
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, name)
+
+
+def register_tk_font():
+    """Load bundled Deadly Advance font into the Windows Tk process when available."""
+    font_path = resource_path("Deadly Advance.ttf")
+    if not os.path.exists(font_path) or not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+        FR_PRIVATE = 0x10
+        added = ctypes.windll.gdi32.AddFontResourceExW(font_path, FR_PRIVATE, 0)
+        return bool(added)
+    except Exception:
+        return False
+
+
+DEADLY_TK_AVAILABLE = register_tk_font()
 
 
 def register_fonts():
@@ -186,7 +204,7 @@ class App:
         self.root = root
         self.root.title("Bluetech Computers - Desktop Quotation")
         self.root.geometry("1320x800")
-        self.root.minsize(1100, 700)
+        self.root.minsize(1000, 560)
         self.rows = []
         self.editing_id = None
         self.build()
@@ -222,9 +240,9 @@ class App:
         brand = tk.Frame(header, bg="#075EAA")
         brand.pack(side="left", padx=22, pady=10)
         tk.Label(brand, text="BLUETECH", bg="#075EAA", fg="#62D3FF",
-                 font=("Segoe UI", 23, "bold")).pack(side="left")
+                 font=(("Deadly Advance" if DEADLY_TK_AVAILABLE else "Segoe UI"), 23, "bold")).pack(side="left")
         tk.Label(brand, text=" COMPUTERS", bg="#075EAA", fg="white",
-                 font=("Segoe UI", 23, "bold")).pack(side="left")
+                 font=(("Deadly Advance" if DEADLY_TK_AVAILABLE else "Segoe UI"), 23, "bold")).pack(side="left")
         tk.Label(brand, text="COMPUTER SALES  |  REPAIRS  |  ACCESSORIES   •   YOUR TECH PARTNER",
                  bg="#075EAA", fg="#D9EEFF", font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=2)
 
@@ -234,9 +252,36 @@ class App:
         ttk.Button(hb, text="Quotation History", style="Blue.TButton", command=self.history).pack(side="left", padx=4)
         ttk.Button(hb, text="⚙  Settings", style="Blue.TButton", command=self.settings).pack(side="left", padx=4)
 
+        # ---------- Main scrollable content ----------
+        # Keep the header fixed. Everything below it scrolls together with the
+        # scrollbar on the far right of the application window.
+        main_area = tk.Frame(self.root, bg="#F3F7FC")
+        main_area.pack(fill="both", expand=True)
+
+        self.page_canvas = tk.Canvas(main_area, bg="#F3F7FC", highlightthickness=0, bd=0)
+        self.page_scroll = ttk.Scrollbar(main_area, orient="vertical", command=self.page_canvas.yview)
+        self.page_content = tk.Frame(self.page_canvas, bg="#F3F7FC")
+        self.page_window = self.page_canvas.create_window((0, 0), window=self.page_content, anchor="nw")
+        self.page_canvas.configure(yscrollcommand=self.page_scroll.set)
+        self.page_canvas.pack(side="left", fill="both", expand=True)
+        self.page_scroll.pack(side="right", fill="y")
+
+        def on_page_content_configure(_event=None):
+            self.page_canvas.configure(scrollregion=self.page_canvas.bbox("all"))
+
+        def on_page_canvas_configure(event):
+            self.page_canvas.itemconfigure(self.page_window, width=event.width)
+
+        self.page_content.bind("<Configure>", on_page_content_configure)
+        self.page_canvas.bind("<Configure>", on_page_canvas_configure)
+        self.page_canvas.bind_all("<MouseWheel>", self._page_mousewheel, add="+")
+
+        # All page sections below the fixed header are placed inside this frame.
+        page_parent = self.page_content
+
         # ---------- Section helper ----------
         def section(title, subtitle=""):
-            bar = tk.Frame(self.root, bg="#0878D1", height=34)
+            bar = tk.Frame(page_parent, bg="#0878D1", height=34)
             bar.pack(fill="x", padx=12, pady=(8, 0))
             bar.pack_propagate(False)
             tk.Label(bar, text=title, bg="#0878D1", fg="white",
@@ -248,7 +293,7 @@ class App:
 
         # ---------- Customer details ----------
         section("CUSTOMER / QUOTATION DETAILS")
-        info = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#B9D7EF",
+        info = tk.Frame(page_parent, bg="#FFFFFF", highlightbackground="#B9D7EF",
                         highlightthickness=1, padx=12, pady=10)
         info.pack(fill="x", padx=12)
 
@@ -280,7 +325,7 @@ class App:
 
         # ---------- Items section ----------
         section("QUOTATION ITEMS", "•  COST AND PROFIT ARE INTERNAL ONLY")
-        box = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1)
+        box = tk.Frame(page_parent, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1)
         box.pack(fill="both", expand=True, padx=12)
 
         heads = ["#", "PRODUCT", "DESCRIPTION", "QTY", "COST (LKR)", "REMOVE"]
@@ -293,7 +338,7 @@ class App:
 
         body = tk.Frame(box, bg="#FFFFFF")
         body.grid(row=1, column=0, columnspan=6, sticky="nsew")
-        box.rowconfigure(1, weight=1, minsize=280)
+        box.rowconfigure(1, weight=1, minsize=85)
 
         self.table_canvas = tk.Canvas(body, bg="#FFFFFF", highlightthickness=0, bd=0)
         self.table_scroll = ttk.Scrollbar(body, orient="vertical", command=self.table_canvas.yview)
@@ -315,7 +360,7 @@ class App:
         for p in DEFAULT_PRODUCTS:
             self.add_row(p, silent=True)
 
-        addbar = tk.Frame(self.root, bg="#F3F7FC")
+        addbar = tk.Frame(page_parent, bg="#F3F7FC")
         addbar.pack(fill="x", padx=12, pady=(4, 2))
         ttk.Button(addbar, text="＋  ADD PRODUCT / ROW", style="Blue.TButton",
                    command=lambda: self.add_row("")).pack(side="left")
@@ -334,7 +379,7 @@ class App:
         self.cod_final = tk.StringVar(value="LKR 0.00")
 
         section("INTERNAL CALCULATION")
-        calc = tk.Frame(self.root, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1, padx=7, pady=7)
+        calc = tk.Frame(page_parent, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1, padx=7, pady=7)
         calc.pack(fill="x", padx=12)
         labels = [("Total Cost", self.total_cost), ("Requested Profit", self.profit),
                   ("3 Months Final Price", self.final90), ("6 Months Final Price (+35%)", self.final180),
@@ -369,7 +414,7 @@ class App:
         calc_btn.grid(row=0, column=len(labels), padx=(6, 2), sticky="ns")
 
         # ---------- Bottom actions ----------
-        actions = tk.Frame(self.root, bg="#F3F7FC")
+        actions = tk.Frame(page_parent, bg="#F3F7FC")
         actions.pack(fill="x", padx=12, pady=(6, 10))
         ttk.Button(actions, text="CLEAR", style="Light.TButton", command=self.new_quote).pack(side="left", padx=3)
         ttk.Button(actions, text="SAVE QUOTATION", style="Blue.TButton", command=self.save_quote).pack(side="right", padx=3)
@@ -382,6 +427,29 @@ class App:
         inv_btn.pack(side="right", padx=3)
 
         self.recalc()
+
+    def _page_mousewheel(self, event):
+        """Scroll the complete quotation page when the pointer is over it."""
+        try:
+            x, y = self.root.winfo_pointerx(), self.root.winfo_pointery()
+            widget = self.root.winfo_containing(x, y)
+            if widget is None:
+                return
+            w = widget
+            while w is not None:
+                # Let the quotation-items scrollbar handle mouse-wheel events
+                # while the pointer is inside the product table.
+                if w in (getattr(self, "table_canvas", None), getattr(self, "table_scroll", None)):
+                    return
+                if w == self.page_canvas:
+                    self.page_canvas.yview_scroll(int(-event.delta / 120), "units")
+                    return "break"
+                try:
+                    w = w.master
+                except Exception:
+                    break
+        except Exception:
+            pass
 
     def _table_mousewheel(self, event):
         # Scroll only when the pointer is over the quotation-items area.
