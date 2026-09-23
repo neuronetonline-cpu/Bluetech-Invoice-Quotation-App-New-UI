@@ -3,6 +3,7 @@ import sqlite3
 import subprocess
 import sys
 import webbrowser
+from job_chit import open_job_chit, show_job_history, setup_db
 from datetime import datetime
 from urllib.parse import quote
 
@@ -113,6 +114,8 @@ def db():
     qcols = {r[1] for r in c.execute("PRAGMA table_info(quotations)").fetchall()}
     if "prepared_by" not in qcols:
         c.execute("ALTER TABLE quotations ADD COLUMN prepared_by TEXT DEFAULT ''")
+    if "title" not in qcols:
+        c.execute("ALTER TABLE quotations ADD COLUMN title TEXT DEFAULT ''")
     defaults = {
         "cod_first_kg": "450",
         "cod_additional_kg": "100",
@@ -207,7 +210,11 @@ class App:
         self.root.minsize(1000, 560)
         self.rows = []
         self.editing_id = None
+        setup_db(db)
         self.build()
+        # The quotation layout is intentionally stable. Do not bind the top-level
+        # <Configure> event to the product table; changing child geometry from a
+        # root Configure callback can create a Tk geometry feedback loop.
 
     def build(self):
         # Polished Bluetech desktop UI. The quotation item list has its own
@@ -250,6 +257,7 @@ class App:
         hb.pack(side="right", padx=18)
         ttk.Button(hb, text="＋  New Quotation", style="Blue.TButton", command=self.new_quote).pack(side="left", padx=4)
         ttk.Button(hb, text="Quotation History", style="Blue.TButton", command=self.history).pack(side="left", padx=4)
+        ttk.Button(hb, text="Job Chit History", style="Blue.TButton", command=lambda: show_job_history(self, db, get_pdf_dir)).pack(side="left", padx=4)
         ttk.Button(hb, text="⚙  Settings", style="Blue.TButton", command=self.settings).pack(side="left", padx=4)
 
         # ---------- Main scrollable content ----------
@@ -301,6 +309,7 @@ class App:
         self.customer = tk.StringVar()
         self.phone = tk.StringVar()
         self.qdate = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        self.title = tk.StringVar()
         users = [name for _, name in get_users()]
         if not users:
             c = db(); c.execute("INSERT OR IGNORE INTO users(name,active) VALUES(?,1)", ("Admin",)); c.commit(); c.close()
@@ -323,10 +332,18 @@ class App:
                                            values=users, state="readonly")
         self.prepared_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=7, pady=(3, 0))
 
+        tk.Label(info, text="TITLE", bg="#FFFFFF", fg="#506176",
+                 font=("Segoe UI", 8, "bold")).grid(row=2, column=2, sticky="w", padx=7, pady=(3, 0))
+        ttk.Entry(info, textvariable=self.title).grid(row=3, column=2, columnspan=2, sticky="ew", padx=7, pady=(3, 0))
+
         # ---------- Items section ----------
         section("QUOTATION ITEMS", "•  COST AND PROFIT ARE INTERNAL ONLY")
         box = tk.Frame(page_parent, bg="#FFFFFF", highlightbackground="#B9D7EF", highlightthickness=1)
-        box.pack(fill="both", expand=True, padx=12)
+        # The product table grows automatically to show the standard 16 rows.
+        # Extra rows are kept inside the table scrollbar instead of making the
+        # whole quotation page unnecessarily tall.
+        box.pack(fill="x", padx=12)
+        self.product_box = box
 
         heads = ["#", "PRODUCT", "DESCRIPTION", "QTY", "COST (LKR)", "REMOVE"]
         weights = [0, 3, 5, 1, 2, 0]
@@ -337,8 +354,10 @@ class App:
                      padx=5, pady=7).grid(row=0, column=j, sticky="nsew", padx=1, pady=1)
 
         body = tk.Frame(box, bg="#FFFFFF")
-        body.grid(row=1, column=0, columnspan=6, sticky="nsew")
-        box.rowconfigure(1, weight=1, minsize=85)
+        body.grid(row=1, column=0, columnspan=6, sticky="ew")
+        body.grid_propagate(False)
+        self.table_body = body
+        box.rowconfigure(1, weight=0)
 
         self.table_canvas = tk.Canvas(body, bg="#FFFFFF", highlightthickness=0, bd=0)
         self.table_scroll = ttk.Scrollbar(body, orient="vertical", command=self.table_canvas.yview)
@@ -351,6 +370,9 @@ class App:
         def on_table_configure(_event=None):
             self.table_canvas.configure(scrollregion=self.table_canvas.bbox("all"))
         def on_canvas_configure(event):
+            # Width follows the viewport. Height is deliberately left to the
+            # table frame's natural content height; changing it here can cause
+            # geometry feedback loops.
             self.table_canvas.itemconfigure(self.table_window, width=event.width)
         self.table.bind("<Configure>", on_table_configure)
         self.table_canvas.bind("<Configure>", on_canvas_configure)
@@ -359,6 +381,7 @@ class App:
         self.rows = []
         for p in DEFAULT_PRODUCTS:
             self.add_row(p, silent=True)
+        self.update_product_table_height()
 
         addbar = tk.Frame(page_parent, bg="#F3F7FC")
         addbar.pack(fill="x", padx=12, pady=(4, 2))
@@ -418,6 +441,7 @@ class App:
         actions.pack(fill="x", padx=12, pady=(6, 10))
         ttk.Button(actions, text="CLEAR", style="Light.TButton", command=self.new_quote).pack(side="left", padx=3)
         ttk.Button(actions, text="SAVE QUOTATION", style="Blue.TButton", command=self.save_quote).pack(side="right", padx=3)
+        ttk.Button(actions, text="CREATE JOB CHIT", style="Green.TButton", command=lambda: open_job_chit(self, db, get_pdf_dir)).pack(side="right", padx=3)
         ttk.Button(actions, text="SAVE AS NEW QUOTATION", style="Blue.TButton", command=self.save_as_new_quote).pack(side="right", padx=3)
         ttk.Button(actions, text="PREVIEW / SAVE PDF", style="Blue.TButton", command=self.save_pdf).pack(side="right", padx=3)
         ttk.Button(actions, text="WHATSAPP QUOTATION", style="Green.TButton", command=self.whatsapp_quotation).pack(side="right", padx=3)
@@ -427,6 +451,21 @@ class App:
         inv_btn.pack(side="right", padx=3)
 
         self.recalc()
+        # Let Tk finish the initial canvas geometry, then refresh the outer
+        # page scroll region once. This is not bound to Configure, so it cannot
+        # create a resize feedback loop.
+        self.root.after_idle(self._refresh_page_scrollregion)
+
+    def _refresh_page_scrollregion(self):
+        try:
+            self.page_content.update_idletasks()
+            # Re-apply the fixed viewport after Tk has completed the initial
+            # layout, then calculate the outer page scroll region once.
+            self.update_product_table_height()
+            self.page_content.update_idletasks()
+            self.page_canvas.configure(scrollregion=self.page_canvas.bbox("all"))
+        except Exception:
+            pass
 
     def _page_mousewheel(self, event):
         """Scroll the complete quotation page when the pointer is over it."""
@@ -472,6 +511,25 @@ class App:
         except Exception:
             pass
 
+    def update_product_table_height(self):
+        """Keep the quotation-items viewport at a fixed height.
+
+        The product table itself has its own scrollbar. The complete quotation
+        page uses the outer scrollbar for the calculation and action sections.
+        No window-size calculation is performed here, so this method cannot
+        participate in a geometry feedback loop.
+        """
+        if not hasattr(self, "table_body"):
+            return
+        # 16 standard rows fit in the quotation-items area. Extra rows use the
+        # table's internal scrollbar. This height is deliberately constant.
+        table_height = 500
+        try:
+            self.table_body.configure(height=table_height)
+            self.table_canvas.configure(scrollregion=self.table_canvas.bbox("all"))
+        except Exception:
+            pass
+
     def add_row(self, product="", silent=False):
         r = len(self.rows)
         p = tk.StringVar(value=product)
@@ -499,6 +557,8 @@ class App:
             e.bind("<KeyRelease>", lambda e: self.recalc())
             if j == 2:
                 e.bind("<Return>", lambda event, widget=e: self.focus_next_row_field(widget, 1))
+            elif j == 3:
+                e.bind("<Return>", lambda event, widget=e: self.focus_next_row_field(widget, 2))
             elif j == 4:
                 e.bind("<Return>", lambda event, widget=e: self.focus_next_row_field(widget, 3))
 
@@ -645,14 +705,15 @@ class App:
             self.num(self.final180.get()),
             self.num(self.weight.get()),
             self.prepared_by.get().strip(),
-            datetime.now().isoformat()
+            datetime.now().isoformat(),
+            self.title.get().strip()
         )
 
         if self.editing_id is not None:
             c.execute(
                 """UPDATE quotations
                    SET qno=?,customer=?,phone=?,date=?,profit=?,
-                       warranty90=?,warranty180=?,weight=?,prepared_by=?,created_at=?
+                       warranty90=?,warranty180=?,weight=?,prepared_by=?,created_at=?,title=?
                    WHERE id=?""",
                 values + (self.editing_id,)
             )
@@ -662,8 +723,8 @@ class App:
         else:
             c.execute(
                 """INSERT INTO quotations
-                   (qno,customer,phone,date,profit,warranty90,warranty180,weight,prepared_by,created_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                   (qno,customer,phone,date,profit,warranty90,warranty180,weight,prepared_by,created_at,title)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                 values
             )
             qid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -783,6 +844,7 @@ class App:
         customer_name = self.customer.get().strip() or "-"
         qinfo = Paragraph(
             f"<b>Quotation No</b> : {self.qno.get()}<br/>"
+            f"<b>Title</b> : {self.title.get().strip() or '-'}<br/>"
             f"<b>Date</b> : {self.qdate.get()}<br/>"
             f"<b>Customer</b> : <font name='Helvetica-Bold'>{customer_name}</font><br/>"
             f"<b>Phone / WhatsApp</b> : {self.phone.get()}<br/>"
@@ -1326,19 +1388,19 @@ class App:
         search_entry.pack(side="left", fill="x", expand=True)
         ttk.Label(
             search_row,
-            text="Name / Quotation No. / Phone / Date"
+            text="Title / Name / Quotation No. / Phone / Date"
         ).pack(side="left", padx=10)
 
         tree = ttk.Treeview(
             win,
-            columns=("q", "customer", "phone", "date", "profit", "p90", "p180"),
+            columns=("q", "title", "customer", "phone", "date", "profit", "p90", "p180"),
             show="headings"
         )
         headings = (
-            "Quotation No.", "Customer", "Phone", "Date",
+            "Quotation No.", "Title", "Customer", "Phone", "Date",
             "Requested Profit", "3 Months", "6 Months"
         )
-        widths = (155, 190, 135, 105, 135, 135, 135)
+        widths = (145, 210, 180, 130, 105, 135, 135, 135)
 
         for col, h, width in zip(tree["columns"], headings, widths):
             tree.heading(col, text=h)
@@ -1348,7 +1410,7 @@ class App:
 
         c = db()
         rows = c.execute(
-            """SELECT id,qno,customer,phone,date,profit,warranty90,warranty180,prepared_by
+            """SELECT id,qno,customer,phone,date,profit,warranty90,warranty180,prepared_by,title
                FROM quotations ORDER BY id DESC"""
         ).fetchall()
         c.close()
@@ -1359,9 +1421,9 @@ class App:
                 tree.delete(item)
 
             for row in rows:
-                qid, qno, customer, phone, date, profit, p90, p180, prepared_by = row
+                qid, qno, customer, phone, date, profit, p90, p180, prepared_by, title = row
                 hay = " ".join([
-                    str(qno or ""), str(customer or ""),
+                    str(qno or ""), str(title or ""), str(customer or ""),
                     str(phone or ""), str(date or "")
                 ]).lower()
 
@@ -1371,7 +1433,7 @@ class App:
                 tree.insert(
                     "", "end", iid=str(qid),
                     values=(
-                        qno, customer, phone, date,
+                        qno, title, customer, phone, date,
                         money(profit), money(p90), money(p180)
                     )
                 )
@@ -1422,7 +1484,7 @@ class App:
         c = db()
         q = c.execute(
             """SELECT id,qno,customer,phone,date,profit,
-                      warranty90,warranty180,weight,prepared_by
+                      warranty90,warranty180,weight,prepared_by,title
                FROM quotations WHERE id=?""",
             (qid,)
         ).fetchone()
@@ -1449,6 +1511,7 @@ class App:
         q, items = record
         self.editing_id = q[0]
         self.qno.set(q[1])
+        self.title.set(q[10] or "")
         self.customer.set(q[2])
         self.phone.set(q[3])
         self.qdate.set(q[4])
@@ -1486,6 +1549,7 @@ class App:
         # Load selected quotation into the editor, but deliberately detach it from the old DB id.
         self.editing_id = None
         self.qno.set(next_qno())
+        self.title.set(q[10] or "")
         self.customer.set(q[2] or "")
         self.phone.set(q[3] or "")
         self.qdate.set(datetime.now().strftime("%Y-%m-%d"))
@@ -1521,6 +1585,7 @@ class App:
 
         self.editing_id = q[0]
         self.qno.set(q[1])
+        self.title.set(q[10] or "")
         self.customer.set(q[2])
         self.phone.set(q[3])
         self.qdate.set(q[4])
@@ -1557,6 +1622,7 @@ class App:
 
         self.editing_id = q[0]
         self.qno.set(q[1])
+        self.title.set(q[10] or "")
         self.customer.set(q[2])
         self.phone.set(q[3])
         self.qdate.set(q[4])
